@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Data.SqlClient;
 using Establecimientos;
-using System.Data;
+using Newtonsoft.Json;
 using Validaciones;
-using System.Text.RegularExpressions;
+using MenuCrud;
 
 namespace ConexionSQL
 {
@@ -194,15 +191,15 @@ namespace ConexionSQL
 
 		public static Restaurant GetResto(string cuit, string conexion)
 		{
-			string query = "SELECT * FROM establecimientosPrueba" +
+			string query = "SELECT * FROM establecimientosPrueba" +	//query 
 				" WHERE cuit =@Cuit ";
 
 			Restaurant unRestaurant = new Restaurant(); //Instancio el objeto para el mapeo con la DB
 
-			using (SqlConnection connection = new SqlConnection(conexion))
+			using (SqlConnection connection = new SqlConnection(conexion))	//llamo al object Connection para iniciar la conexion
 			{
-				SqlCommand command = new SqlCommand(query, connection);
-				command.Parameters.AddWithValue("@Cuit", cuit);
+				SqlCommand command = new SqlCommand(query, connection);	//LLamo al SQLcommand y le asigno la query junto a la conexion
+				command.Parameters.AddWithValue("@Cuit", cuit);	//Asigno el valor al alias @Cuit
 				
 				try
 				{
@@ -258,8 +255,6 @@ namespace ConexionSQL
 							unRestaurant.MailContacto = reader.GetString(10);
 						else
 							unRestaurant.MailContacto = null;
-
-						//Agrego los objetos cargados a la lista
 					}
 					reader.Close(); //Cierro el reader
 					command.ExecuteNonQuery();
@@ -275,8 +270,7 @@ namespace ConexionSQL
 
 		public static bool BuscarCuit(string cuit)
 		{
-			string query = "IF EXISTS(SELECT cuit FROM establecimientosPrueba WHERE cuit = @Cuit) BEGIN SELECT 1 END ELSE BEGIN SELECT 0 END";
-							
+			string query = "IF EXISTS(SELECT cuit FROM establecimientosPrueba WHERE cuit = @Cuit) BEGIN SELECT 1 END ELSE BEGIN SELECT 0 END";				
 			bool estado = true;
 
 			using (SqlConnection connection = new SqlConnection(ConnectionString))
@@ -306,7 +300,6 @@ namespace ConexionSQL
 					throw new Exception("Hay un error en la db" + ex.Message);
 				}
 			}
-
 			return estado;
 		}
 
@@ -335,67 +328,72 @@ namespace ConexionSQL
 			}
 		}
 
-		public static bool ValidarCampo(Predicate<string> condicion, string ingreso)
+		public static string ValidarCampo(Predicate<string> condicion, string ingreso)
 		{		
-			int intentos = 0;
-			int restantes = 3;
+			int intentos = 1;
+			int restantes = 4;
 				
 			if (!condicion(ingreso))
 			{
 				do
 				{
+					Console.ForegroundColor = ConsoleColor.Red;
 					Console.WriteLine($"Error, reingrese el dato a modificar (Intentos : {restantes - intentos}): ");
-					ingreso = Console.ReadLine();
 					intentos++;
+					ingreso = Console.ReadLine();					
 
-				} while (!((intentos == 3) || !condicion(ingreso)));
+				} while ((intentos < 4) && !condicion(ingreso));
 
-				if (intentos == 3)
+				if (condicion(ingreso))
+				{
+					return ingreso;
+				}
+				else if (intentos == 4)
 				{
 					Console.ForegroundColor = ConsoleColor.Red;
 					Console.WriteLine("Se acabaron los intentos :(");
 					Console.ReadKey();
-					return false;
-				}
-				else if (condicion(ingreso))
-				{
-					return true;
-				}
-				else
-				{
-					Console.WriteLine("\n\nNo se ha encontrado el cuit especificado");
-					return false;
-				}
+					return null;
+				}				
+					return null;				
 			}
 			else
-				return true;			
+				return ingreso;			
 		}
 
 		public static void MostrarResto(string cuitMostrar, string conexion)
 		{
 			var restoMostrar = GetResto(cuitMostrar, conexion);
-			Console.ForegroundColor = ConsoleColor.Cyan;
-			Console.WriteLine("\n\n" + "Cuit: " + restoMostrar.Cuit + "\n" +
-									   "Nombre: " + restoMostrar.Nombre + "\n" +
-									   "Ubicacion: " + restoMostrar.Ubicacion + "\n" +
-									   "Pais: " + restoMostrar.Pais + "\n" +
-									   "Telefono: " + restoMostrar.Telefono + "\n" +
-									   "Empleados: " + restoMostrar.CantidadEmpleados + "\n" +
-									   "Fecha Alta: " + restoMostrar.FechaAlta + "\n" +
-									   "Impuestos al dia: " + Convert.ToInt32(restoMostrar.ImpuestosAlDia) + "\n" +
-									   "Importe Impuestos: " + restoMostrar.ImporteImpuestos + "\n" +
-									   "Mail: " + restoMostrar.MailContacto + "\n\n");
 
-			Console.WriteLine("Presione una tecla para continuar");
-			Console.ReadKey();
+			try
+			{
+				Console.ForegroundColor = ConsoleColor.Cyan;
+				Console.WriteLine("\n" + "Cuit: " + restoMostrar.Cuit + "\n" +
+										   "Nombre: " + restoMostrar.Nombre + "\n" +
+										   "Ubicacion: " + restoMostrar.Ubicacion + "\n" +
+										   "Pais: " + restoMostrar.Pais + "\n" +
+										   "Telefono: " + restoMostrar.Telefono + "\n" +
+										   "Empleados: " + restoMostrar.CantidadEmpleados + "\n" +
+										   "Fecha Alta: " + restoMostrar.FechaAlta + "\n" +
+										   "Impuestos al dia: " + Convert.ToInt32(restoMostrar.ImpuestosAlDia) + "\n" +
+										   "Importe Impuestos: " + restoMostrar.ImporteImpuestos + "\n" +
+										   "Mail: " + restoMostrar.MailContacto + "\n");
+			}
+			catch (Exception ex)
+			{
+
+				throw new Exception(ex.Message);
+			}		
 		}
 
-		public static void MostrarTodosRestos()
+		public static void MostrarTodosRestos(List<Restaurant> listaRestos)
 		{
 			Console.Clear();
 			Console.ForegroundColor = ConsoleColor.Cyan;
-			var mostrarEstablecimientos = Get();
-			mostrarEstablecimientos.ForEach(d => Console.WriteLine("\n\n" +
+
+			try
+			{
+				listaRestos.ForEach(d => Console.WriteLine("\n" +
 										   "Cuit: " + d.Cuit + "\n" +
 										   "Nombre: " + d.Nombre + "\n" +
 										   "Ubicacion: " + d.Ubicacion + "\n" +
@@ -406,18 +404,79 @@ namespace ConexionSQL
 										   "Impuestos al dia: " + Convert.ToInt32(d.ImpuestosAlDia) + "\n" +
 										   "Importe Impuestos: " + d.ImporteImpuestos + "\n" +
 										   "Mail: " + d.MailContacto + "\n\n" +
-										   "##############################################\n" +
-										   "##############################################\n" +
-										   "##############################################\n"));
+										   "**********************************************\n" +
+										   "**********************************************\n" +
+										   "**********************************************"));
 
-			Console.WriteLine("Presione una tecla para continuar");
-			Console.ReadKey();
+				Console.WriteLine("\nPresione una tecla para continuar");
+				Console.ReadKey();
+			}
+			catch (Exception ex)
+			{
+				throw new Exception(ex.Message);
+			}				
 		}
 
-		public static bool ConfirmarOperacion(string ingreso)
+		public static void ParseJson(List<Restaurant> listaRestos)
 		{
-			return (new string[] { "SI", "Si", "S", "si", "s" }.Any(c => ingreso.Contains(c)));
+			var json = JsonConvert.SerializeObject(listaRestos);
+			System.IO.File.WriteAllText(@"C:\Users\braian.cespedes\Desktop\Capacitacion\path.txt", json);
 		}
 
+		public static void ValidarNuevoCuit(string ingreso)
+		{
+			if (ValidacionesString.NotNull(ingreso))
+			{
+				if (!ValidacionesString.Cuit(ingreso))
+				{
+					int intentos = 1;
+					int restantes = 4;
+					do
+					{
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.WriteLine($"Error, reingrese el dato a modificar (Intentos : {restantes - intentos}): ");
+						intentos++;
+						ingreso = Console.ReadLine();
+
+					} while ((intentos < 4) && !ValidacionesString.Cuit(ingreso));
+
+					if (ValidacionesString.Cuit(ingreso))
+					{
+						if (!BuscarCuit(ingreso))
+						{
+							Add(CRUD.DatosRestaurant(ingreso));
+							Console.ForegroundColor = ConsoleColor.Green;
+							Console.WriteLine("\nRestaurant agregado con exito!!!");
+							Console.ReadKey();
+						}
+						else if (BuscarCuit(ingreso))
+						{
+							Console.ForegroundColor = ConsoleColor.Blue;
+							Console.WriteLine("\nYa existe el cuit ingresado en la base de datos");
+							Console.ReadKey();
+						}
+					}
+					else
+					{
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.WriteLine("Se acabaron los intentos :(");
+						Console.ReadKey();
+					}
+				}
+				else if (!BuscarCuit(ingreso))
+				{
+					Add(CRUD.DatosRestaurant(ingreso));
+					Console.ForegroundColor = ConsoleColor.Green;
+					Console.WriteLine("\nRestaurant agregado con exito!!!");
+					Console.ReadKey();
+				}
+				else
+				{
+					Console.ForegroundColor = ConsoleColor.Blue;
+					Console.WriteLine("\nYa existe el cuit ingresado en la base de datos");
+					Console.ReadKey();
+				}
+			}
+		}
 	}
 }
